@@ -1,31 +1,36 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from celery_worker import schedule_post
+from celery_worker import generate_twitter_content
+from datetime import datetime
 
 app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins, can be restricted to specific origins if needed
-    allow_credentials=True,
-    allow_methods=["*"],  # Allows all HTTP methods (GET, POST, PUT, etc.)
-    allow_headers=["*"],  # Allows all headers
-)
 
 class PostContent(BaseModel):
     content: str
-    # schedule_time:str
-@app.get('/')
-def read_root():
-    return {'message': 'Welcome to automating your life.'}
+    schedule_time: str
 
 @app.post("/schedule/")
-def schedule(post: PostContent):
-    task= schedule_post.delay(post.content)
-    return {"status": "Scheduled", "task_id": task.id}
+async def schedule_post(post: PostContent):
+    # Calculate delay in seconds
+    try:
+        schedule_time = datetime.strptime(post.schedule_time, "%Y-%m-%d %H:%M:%S")
+        delay = (schedule_time - datetime.utcnow()).total_seconds()
 
-@app.get("/task-status/{task_id}")
-def get_status(task_id:str):
-    task=schedule_post.AsyncResult(task_id)
-    return {"task_id":task_id,"status":task.status,"reslt":task.result}
+        print("Current time",datetime.utcnow())
+        print("Scheduled time",schedule_time)
 
+        if delay <= 0:
+            raise HTTPException(status_code=400, detail="Scheduled time must be in the future.")
+        
+        print(f"Scheduling task with delay: {delay} seconds")  # Log the delay value
+        
+        # Schedule task to post on Twitter
+        task = generate_twitter_content.apply_async(args=[post.content], countdown=delay)
+
+        # Log the task ID
+        print(f"Task scheduled with task ID: {task.id}")
+        
+        return {"message": "Post scheduled successfully", "task_id": task.id}
+    except Exception as e:
+        print(f"Error in scheduling post: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
