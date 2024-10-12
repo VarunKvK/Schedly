@@ -10,18 +10,6 @@ auth = tweepy.OAuthHandler(os.getenv("TWITTER_API_KEY"), os.getenv("TWITTER_API_
 auth.set_access_token(os.getenv("TWITTER_ACCESS_TOKEN"), os.getenv("TWITTER_ACCESS_TOKEN_SECRET"))
 twitter_api = tweepy.API(auth)
 
-
-import tweepy
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Set up Twitter API credentials
-auth = tweepy.OAuthHandler(os.getenv("TWITTER_API_KEY"), os.getenv("TWITTER_API_SECRET"))
-auth.set_access_token(os.getenv("TWITTER_ACCESS_TOKEN"), os.getenv("TWITTER_ACCESS_TOKEN_SECRET"))
-twitter_api = tweepy.API(auth)
-
 celery = Celery(
     'tasks',
     broker='redis://localhost:6379/0',  # Redis as the message broker
@@ -46,7 +34,7 @@ def generate_twitter_content(content):
         print(f"Post successful: {content}")  # Confirm that the post was successful
         
         return f"Post is scheduled: {content}"
-    except tweepy.TweepError as e:
+    except tweepy.TweepyException as e:
         print(f"Error occurred while tweeting: {e}")
         return str(e)
     except Exception as e:
